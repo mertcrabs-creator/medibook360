@@ -1,0 +1,118 @@
+// MediBook360 database schema.
+// Models are added step by step (auth, providers, patients, ...).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ---------------------------------------------------------------------------
+// Users
+// ---------------------------------------------------------------------------
+
+/// Who a user is in the platform. Panel access needs SUPER_ADMIN or ADMIN.
+enum UserRole {
+  SUPER_ADMIN
+  ADMIN
+}
+
+enum UserStatus {
+  ACTIVE
+  DISABLED
+}
+
+model User {
+  id           String     @id @default(uuid(7)) @db.Uuid
+  /// Stored trimmed, NFC-normalized and lowercased: compare the same way.
+  email        String     @unique
+  name         String
+  /// scrypt hash (`$scrypt$ln=17,...`). Never leaves UsersRepository.
+  passwordHash String?    @map("password_hash")
+  role         UserRole
+  status       UserStatus @default(ACTIVE)
+  lastLoginAt  DateTime?  @map("last_login_at") @db.Timestamptz(3)
+  createdAt    DateTime   @default(now()) @map("created_at") @db.Timestamptz(3)
+  updatedAt    DateTime   @updatedAt @map("updated_at") @db.Timestamptz(3)
+
+  sessions Session[]
+
+  @@map("users")
+}
+
+// ---------------------------------------------------------------------------
+// Authentication state (@nestjs/authentication stores)
+// Sessions are stored by the SHA-256 of their cookie token; TOTP secrets
+// arrive encrypted (AES-256-GCM); recovery codes arrive scrypt-hashed.
+// Nothing in these tables can be replayed.
+// ---------------------------------------------------------------------------
+
+model Session {
+  /// SHA-256 of the cookie token.
+  id           String   @id
+  userId       String   @map("user_id") @db.Uuid
+  createdAt    DateTime @map("created_at") @db.Timestamptz(3)
+  expiresAt    DateTime @map("expires_at") @db.Timestamptz(3)
+  lastActiveAt DateTime @map("last_active_at") @db.Timestamptz(3)
+  /// 'pending' | 'verified'
+  mfa          String?
+  metadata     Json?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([expiresAt])
+  @@map("sessions")
+}
+
+model MfaAuthenticator {
+  userId        String  @id @map("user_id") @db.Uuid
+  secret        String
+  confirmed     Boolean
+  pendingSecret String? @map("pending_secret")
+  lastUsedStep  Int?    @map("last_used_step")
+
+  @@map("mfa_authenticators")
+}
+
+model MfaRecoveryCode {
+  userId   String @map("user_id") @db.Uuid
+  codeHash String @map("code_hash")
+
+  @@id([userId, codeHash])
+  @@map("mfa_recovery_codes")
+}
+
+model MfaFailure {
+  id       Int      @id @default(autoincrement())
+  userId   String   @map("user_id") @db.Uuid
+  failedAt DateTime @map("failed_at") @db.Timestamptz(3)
+
+  @@index([userId, failedAt])
+  @@index([failedAt])
+  @@map("mfa_failures")
+}
+
+// ---------------------------------------------------------------------------
+// Audit trail: every security-relevant event, append-only.
+// ---------------------------------------------------------------------------
+
+model AuditLog {
+  id        BigInt   @id @default(autoincrement())
+  /// The user the event is about (null for unknown accounts).
+  userId    String?  @map("user_id") @db.Uuid
+  /// e.g. 'sign-in', 'sign-in-failed', 'mfa-enabled', 'setup-completed'.
+  action    String
+  ip        String?
+  userAgent String?  @map("user_agent")
+  /// Extra details. Never passwords, codes, tokens or patient data.
+  details   Json?
+  createdAt DateTime @default(now()) @map("created_at") @db.Timestamptz(3)
+
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([createdAt(sort: Desc)])
+  @@map("audit_logs")
+}

@@ -1,0 +1,34 @@
+# dependencies
+node_modules/
+.pnpm-store/
+
+# builds
+.next/
+dist/
+out/
+.turbo/
+*.tsbuildinfo
+next-env.d.ts
+
+# generated
+apps/api/src/generated/
+
+# env / secrets - never commit
+.env
+.env.*
+!.env.example
+
+# logs & os
+*.log
+.DS_Store
+Thumbs.db
+
+# editors
+.vscode/*
+!.vscode/extensions.json
+.idea/
+
+# test
+coverage/
+playwright-report/
+test-results/

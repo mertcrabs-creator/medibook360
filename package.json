@@ -1,0 +1,25 @@
+{
+  "name": "medibook360",
+  "private": true,
+  "packageManager": "pnpm@12.18.0",
+  "engines": {
+    "node": ">=24.0.0"
+  },
+  "scripts": {
+    "setup:env": "node scripts/setup-env.mjs",
+    "dev": "turbo run dev",
+    "build": "turbo run build",
+    "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "services:up": "docker compose up -d",
+    "services:down": "docker compose down",
+    "services:logs": "docker compose logs -f",
+    "db:migrate": "pnpm --filter @medibook/api db:migrate",
+    "db:generate": "pnpm --filter @medibook/api db:generate",
+    "db:studio": "pnpm --filter @medibook/api db:studio"
+  },
+  "devDependencies": {
+    "turbo": "^2.11.10"
+  }
+}
